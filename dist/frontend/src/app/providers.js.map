@@ -1,1 +1,0 @@
-{"version":3,"file":"providers.js","sourceRoot":"","sources":["../../../../frontend/src/app/providers.tsx"],"names":[],"mappings":"AAAA,YAAY,CAAC;;;AAKb,4BAEC;AALD,mCAAgC;AAChC,6CAAuC;AAEvC,SAAwB,SAAS,CAAC,EAAE,QAAQ,EAAiC;IAC3E,OAAO,CAAC,sBAAQ,CAAC,KAAK,CAAC,CAAC,aAAK,CAAC,CAAC,CAAC,QAAQ,CAAC,EAAE,sBAAQ,CAAC,CAAC;AACvD,CAAC"}

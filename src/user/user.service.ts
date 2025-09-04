@@ -117,7 +117,21 @@ export class UserService {
   }
 
   async updateProfile(id: number, updateData: any): Promise<User> {
-    await this.userRepository.update(id, updateData);
+    // Chỉ cập nhật các trường được cung cấp
+    const allowedFields = ['firstName', 'lastName', 'phoneNumber', 'avatar'];
+    const filteredData = {};
+    
+    for (const field of allowedFields) {
+      if (updateData[field] !== undefined) {
+        filteredData[field] = updateData[field];
+      }
+    }
+
+    if (Object.keys(filteredData).length === 0) {
+      throw new Error('No valid fields to update');
+    }
+
+    await this.userRepository.update(id, filteredData);
     return this.findById(id);
   }
 }

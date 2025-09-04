@@ -3,8 +3,11 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
-  import { PhotoEditorModule } from './photo-editor/photo-editor.module';
-  import { MailModule } from './mail/mail.module';
+import { PhotoEditorModule } from './photo-editor/photo-editor.module';
+import { MailModule } from './mail/mail.module';
+import { PricingModule } from './pricing/pricing.module';
+import { ProductModule } from './product/product.module';
+import { CategoryModule } from './category/category.module';
 
 @Module({
   imports: [
@@ -25,6 +28,9 @@ import { UserModule } from './user/user.module';
     UserModule,
     PhotoEditorModule,
     MailModule,
+    PricingModule,
+    ProductModule,
+    CategoryModule,
   ],
 })
 export class AppModule {}

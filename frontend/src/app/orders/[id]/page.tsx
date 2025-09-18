@@ -93,7 +93,7 @@ export default function OrderDetailPage() {
       }
    }
 
-   const canCancel = order && order.status !== 'cancelled' && order.status !== 'delivered'
+   const canCancel = order && order.status === 'pending'
 
    return (
       <div className="min-h-screen bg-cosmic">

@@ -14,7 +14,7 @@ import { showToast } from '../utils/toast'
 
 export const useCart = () => {
   const dispatch = useDispatch<AppDispatch>()
-  const cart = useSelector((state: RootState) => state.cart)
+  const cart = useSelector((state: RootState) => state.cart)!
 
   const addItem = useCallback((product: {
     id: number

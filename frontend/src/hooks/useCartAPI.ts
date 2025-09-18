@@ -31,7 +31,7 @@ interface CartResponse {
 export const useCartAPI = () => {
   const dispatch = useDispatch<AppDispatch>()
   const { isAuthenticated, token } = useAuth()
-  const cart = useSelector((state: RootState) => state.cart)
+  const cart = useSelector((state: RootState) => state.cart)!
   const inFlightRef = useRef(false)
   const controllerRef = useRef<AbortController | null>(null)
   const lastFetchAtRef = useRef<number>(0)

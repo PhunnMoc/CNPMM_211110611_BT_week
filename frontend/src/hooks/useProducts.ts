@@ -17,8 +17,10 @@ export const useProducts = (params: {
   minPrice?: number
   maxPrice?: number
 } = {}) => {
-  const filters = useSelector((state: RootState) => state.ui.filters)
-  const searchQuery = useSelector((state: RootState) => state.ui.searchQuery)
+  // Assert UI slice exists in store; provide safe fallback for searchQuery
+  const ui = useSelector((state: RootState) => state.ui)!
+  const filters = ui.filters
+  const searchQuery = ui.searchQuery ?? ''
   
   const queryParams = useMemo(() => ({
     page: params.page || 1,

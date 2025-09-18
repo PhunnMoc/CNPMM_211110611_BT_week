@@ -59,7 +59,7 @@ export const useOrder = (id: number) => {
 
 export const useOrderActions = () => {
   const dispatch = useDispatch<AppDispatch>()
-  const cart = useSelector((state: RootState) => state.cart)
+  const cart = useSelector((state: RootState) => state.cart)!
   
   const [createOrderMutation] = useCreateOrderMutation()
   const [updateStatusMutation] = useUpdateOrderStatusMutation()

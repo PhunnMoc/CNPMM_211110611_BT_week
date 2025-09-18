@@ -20,7 +20,8 @@ import { showToast } from '../utils/toast'
 
 export const useAuth = () => {
   const dispatch = useDispatch<AppDispatch>()
-  const auth = useSelector((state: RootState) => state.auth)
+  // Non-null assertion: `auth` slice always exists in our store shape
+  const auth = useSelector((state: RootState) => state.auth)!
   
   const [loginMutation] = useLoginMutation()
   const [registerMutation] = useRegisterMutation()
@@ -28,7 +29,7 @@ export const useAuth = () => {
   const [updateAvatarMutation] = useUpdateUserAvatarMutation()
   
   const { data: userProfile, refetch: refetchProfile } = useGetUserProfileQuery(undefined, {
-    skip: !auth.isAuthenticated,
+    skip: !auth?.isAuthenticated,
   })
 
   // Keep Redux user state in sync with latest profile (including avatar)
@@ -38,11 +39,11 @@ export const useAuth = () => {
         id: userProfile.id,
         username: userProfile.username,
         email: userProfile.email,
-        firstName: userProfile.first_name ?? userProfile.firstName,
-        lastName: userProfile.last_name ?? userProfile.lastName,
+        firstName: userProfile.firstName ?? userProfile.firstName,
+        lastName: userProfile.lastName ?? userProfile.lastName,
         phone: userProfile.phone,
-        avatarUrl: userProfile.avatar_url ?? userProfile.avatarUrl ?? null,
-        isAdmin: userProfile.is_admin ?? userProfile.isAdmin,
+        avatarUrl: userProfile.avatarUrl ?? userProfile.avatarUrl ?? null,
+        isAdmin: userProfile.isAdmin ?? userProfile.isAdmin,
       }
       dispatch(updateUser(normalized))
     }

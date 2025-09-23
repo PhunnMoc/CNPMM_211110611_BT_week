@@ -163,3 +163,61 @@ CREATE INDEX idx_orders_status ON orders(status);
 CREATE INDEX idx_cart_user ON cart_items(user_id);
 CREATE INDEX idx_reviews_product ON reviews(product_id);
 CREATE INDEX idx_wishlist_user ON wishlist(user_id);
+
+-- Product views (recently viewed tracking)
+CREATE TABLE IF NOT EXISTS product_views (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NULL,
+    product_id INT NOT NULL,
+    viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+    INDEX idx_views_user (user_id),
+    INDEX idx_views_product (product_id),
+    INDEX idx_views_time (viewed_at)
+);
+
+-- Loyalty points and coupons
+CREATE TABLE IF NOT EXISTS user_points (
+    user_id INT PRIMARY KEY,
+    balance INT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS point_transactions (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    points INT NOT NULL,
+    reason VARCHAR(200) NOT NULL,
+    reference_type ENUM('review','order','manual') DEFAULT 'review',
+    reference_id INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_pt_user (user_id)
+);
+
+CREATE TABLE IF NOT EXISTS coupons (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    code VARCHAR(40) UNIQUE NOT NULL,
+    description VARCHAR(255),
+    discount_type ENUM('percent','fixed') NOT NULL,
+    discount_value DECIMAL(10,2) NOT NULL,
+    min_order_amount DECIMAL(10,2) DEFAULT 0,
+    expires_at DATETIME NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS user_coupons (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    coupon_id INT NOT NULL,
+    is_redeemed BOOLEAN DEFAULT FALSE,
+    granted_reason ENUM('review','manual') DEFAULT 'review',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    redeemed_at DATETIME NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (coupon_id) REFERENCES coupons(id) ON DELETE CASCADE,
+    UNIQUE KEY uniq_user_coupon (user_id, coupon_id)
+);

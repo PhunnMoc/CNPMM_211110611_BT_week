@@ -1,4 +1,5 @@
 const express = require("express");
+const jwt = require("jsonwebtoken");
 const { body, validationResult, query } = require("express-validator");
 const pool = require("../config/database");
 const { authenticateToken, requireAdmin } = require("../middleware/auth");
@@ -102,7 +103,7 @@ router.get(
       const [countResult] = await pool.execute(countQuery, queryParams);
       const total = countResult[0].total;
 
-      // Get products with primary image via subquery to avoid ONLY_FULL_GROUP_BY issues
+      // Get products with primary image and review count via subqueries to avoid ONLY_FULL_GROUP_BY issues
       const productsQuery = `
       SELECT 
         p.id,
@@ -117,6 +118,16 @@ router.get(
         p.created_at,
         c.name as category_name,
         (
+          SELECT COALESCE(AVG(r.rating), 0)
+          FROM reviews r
+          WHERE r.product_id = p.id AND r.is_approved = 1
+        ) as rating,
+        (
+          SELECT COUNT(r2.id)
+          FROM reviews r2
+          WHERE r2.product_id = p.id AND r2.is_approved = 1
+        ) as reviewCount,
+        (
           SELECT pi.image_url 
           FROM product_images pi 
           WHERE pi.product_id = p.id AND pi.is_primary = 1 
@@ -126,7 +137,9 @@ router.get(
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       ${whereClause}
-      ORDER BY p.${sortBy} ${sortOrder.toUpperCase()}
+      ORDER BY ${
+        sortBy === "rating" ? "rating" : `p.${sortBy}`
+      } ${sortOrder.toUpperCase()}
       LIMIT ${limitNum} OFFSET ${offset}
     `;
 
@@ -242,14 +255,125 @@ router.get("/:id", async (req, res) => {
       productId,
     ]);
 
+    // Purchase count = number of distinct customers who bought this product (delivered orders)
+    const purchaseCountQuery = `
+      SELECT COUNT(DISTINCT o.user_id) AS customers
+      FROM order_items oi
+      JOIN orders o ON oi.order_id = o.id
+      WHERE oi.product_id = ? AND o.status = 'delivered'
+    `;
+    const [[purchaseCountRow]] = await pool.execute(purchaseCountQuery, [
+      productId,
+    ]);
+
+    // View count = total views recorded
+    const viewCountQuery = `SELECT COUNT(*) AS views FROM product_views WHERE product_id = ?`;
+    const [[viewCountRow]] = await pool.execute(viewCountQuery, [productId]);
+
+    // Review (comment) count
+    const reviewCountQuery = `SELECT COUNT(*) AS review_count FROM reviews WHERE product_id = ? AND is_approved = 1`;
+    const [[reviewCountRow]] = await pool.execute(reviewCountQuery, [
+      productId,
+    ]);
+
     res.json({
       ...products[0],
       images,
       relatedProducts,
+      purchase_count: purchaseCountRow?.customers || 0,
+      view_count: viewCountRow?.views || 0,
+      review_count: reviewCountRow?.review_count || 0,
     });
   } catch (error) {
     console.error("Get product error:", error);
     res.status(500).json({ message: "Server error while fetching product" });
+  }
+});
+
+// Record a product view (user optional)
+router.post("/:id/view", async (req, res) => {
+  try {
+    const productId = req.params.id;
+
+    // Try to extract user ID from Authorization header if present
+    let userId = null;
+    const authHeader = req.headers["authorization"];
+    const token = authHeader && authHeader.split(" ")[1];
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        userId = decoded.userId || null;
+      } catch (_) {
+        // ignore invalid token; treat as anonymous view
+      }
+    }
+
+    // Ensure product exists
+    const [prods] = await pool.execute(
+      "SELECT id FROM products WHERE id = ? AND is_active = 1",
+      [productId]
+    );
+    if (prods.length === 0) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    await pool.execute(
+      "INSERT INTO product_views (user_id, product_id) VALUES (?, ?)",
+      [userId, productId]
+    );
+
+    res.json({ message: "View recorded" });
+  } catch (error) {
+    console.error("Record view error:", error);
+    res.status(500).json({ message: "Server error while recording view" });
+  }
+});
+
+// Get recently viewed products (for current user if token provided; otherwise top viewed)
+router.get("/recent/list", async (req, res) => {
+  try {
+    let userId = null;
+    const authHeader = req.headers["authorization"];
+    const token = authHeader && authHeader.split(" ")[1];
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        userId = decoded.userId || null;
+      } catch (_) {}
+    }
+
+    let rows;
+    if (userId) {
+      const [result] = await pool.execute(
+        `SELECT p.id, p.name, p.price, p.discount_price,
+                (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id AND pi.is_primary = 1 LIMIT 1) AS image
+         FROM product_views v
+         JOIN products p ON v.product_id = p.id
+         WHERE v.user_id = ? AND p.is_active = 1
+         GROUP BY p.id
+         ORDER BY MAX(v.viewed_at) DESC
+         LIMIT 10`,
+        [userId]
+      );
+      rows = result;
+    } else {
+      const [result] = await pool.execute(
+        `SELECT p.id, p.name, p.price, p.discount_price,
+                (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id AND pi.is_primary = 1 LIMIT 1) AS image
+         FROM products p
+         WHERE p.is_active = 1
+         ORDER BY (SELECT COUNT(*) FROM product_views v WHERE v.product_id = p.id) DESC, p.created_at DESC
+         LIMIT 10`
+      );
+      rows = result;
+    }
+
+    res.json(rows);
+  } catch (error) {
+    console.error("Recent products error:", error);
+    res
+      .status(500)
+      .json({ message: "Server error while fetching recent products" });
   }
 });
 

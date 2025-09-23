@@ -94,6 +94,15 @@ export default function OrderDetailPage() {
    }
 
    const canCancel = order && order.status === 'pending'
+   const subtotal = useMemo(() => {
+      if (!order) return 0
+      return order.items.reduce((s, it) => s + Number(it.price) * Number(it.quantity), 0)
+   }, [order])
+   const discountTotal = useMemo(() => {
+      if (!order) return 0
+      const d = subtotal - Number(order.total_amount)
+      return d > 0 ? d : 0
+   }, [order, subtotal])
 
    return (
       <div className="min-h-screen bg-cosmic">
@@ -134,9 +143,38 @@ export default function OrderDetailPage() {
                      </div>
                   </div>
 
-                  <div className="glass-card p-6">
-                     <div className="font-semibold mb-2">Shipping address</div>
-                     <div className="whitespace-pre-wrap text-white/80">{order.shipping_address}</div>
+                  <div className="grid md:grid-cols-2 gap-6">
+                     <div className="glass-card p-6">
+                        <div className="font-semibold mb-2">Shipping address</div>
+                        <div className="whitespace-pre-wrap text-white/80">{order.shipping_address}</div>
+                        {order.notes ? (
+                           <div className="mt-4">
+                              <div className="font-semibold mb-1">Notes</div>
+                              <div className="text-white/80">{order.notes}</div>
+                           </div>
+                        ) : null}
+                     </div>
+
+                     <div className="glass-card p-6">
+                        <div className="font-semibold mb-2">Summary</div>
+                        <div className="space-y-2 text-sm">
+                           <div className="flex items-center justify-between text-white/80">
+                              <span>Items subtotal</span>
+                              <span className="text-white">${subtotal.toFixed(2)}</span>
+                           </div>
+                           <div className="flex items-center justify-between text-white/80">
+                              <span>Discounts (coupon/points)</span>
+                              <span className="text-green-300">-{discountTotal.toFixed(2)}</span>
+                           </div>
+                           <div className="flex items-center justify-between font-semibold">
+                              <span>Total charged</span>
+                              <span>${Number(order.total_amount).toFixed(2)}</span>
+                           </div>
+                        </div>
+                        <div className="text-xs text-white/60 mt-3">
+                           If you applied a coupon or redeemed points at checkout, the discount is reflected above.
+                        </div>
+                     </div>
                   </div>
 
                   <div className="glass-card p-6">

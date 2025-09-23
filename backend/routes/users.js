@@ -536,4 +536,69 @@ router.delete("/wishlist/:productId", authenticateToken, async (req, res) => {
   }
 });
 
+// Get user points balance
+router.get("/points", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const [[row]] = await pool.execute(
+      "SELECT balance FROM user_points WHERE user_id = ?",
+      [userId]
+    );
+    res.json({ balance: Number(row?.balance || 0) });
+  } catch (error) {
+    console.error("Get points error:", error);
+    res.status(500).json({ message: "Server error while fetching points" });
+  }
+});
+
+// Get user's coupons (optionally only available ones)
+router.get("/coupons", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const onlyAvailable = (req.query.onlyAvailable ?? "1") === "1";
+    const provisionIfEmpty = (req.query.provisionIfEmpty ?? "1") === "1";
+
+    let where = "WHERE uc.user_id = ?";
+    const params = [userId];
+    if (onlyAvailable) {
+      where +=
+        " AND uc.is_redeemed = 0 AND c.is_active = 1 AND (c.expires_at IS NULL OR c.expires_at > CURRENT_TIMESTAMP)";
+    }
+
+    let [rows] = await pool.execute(
+      `SELECT c.code, c.description, c.discount_type, c.discount_value, c.min_order_amount, c.expires_at, uc.is_redeemed
+       FROM user_coupons uc
+       JOIN coupons c ON uc.coupon_id = c.id
+       ${where}
+       ORDER BY c.expires_at IS NULL DESC, c.expires_at ASC, uc.id DESC`,
+      params
+    );
+
+    // Auto-provision active coupons to the user if none found
+    if (rows.length === 0 && provisionIfEmpty) {
+      await pool.execute(
+        `INSERT IGNORE INTO user_coupons (user_id, coupon_id, granted_reason)
+         SELECT ?, c.id, 'auto-provision'
+         FROM coupons c
+         WHERE c.is_active = 1 AND (c.expires_at IS NULL OR c.expires_at > CURRENT_TIMESTAMP)`,
+        [userId]
+      );
+      // Re-read after provisioning
+      [rows] = await pool.execute(
+        `SELECT c.code, c.description, c.discount_type, c.discount_value, c.min_order_amount, c.expires_at, uc.is_redeemed
+         FROM user_coupons uc
+         JOIN coupons c ON uc.coupon_id = c.id
+         ${where}
+         ORDER BY c.expires_at IS NULL DESC, c.expires_at ASC, uc.id DESC`,
+        params
+      );
+    }
+
+    res.json(rows);
+  } catch (error) {
+    console.error("Get coupons error:", error);
+    res.status(500).json({ message: "Server error while fetching coupons" });
+  }
+});
+
 module.exports = router;

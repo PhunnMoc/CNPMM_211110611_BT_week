@@ -17,6 +17,24 @@ export default function CartPage() {
    const [shippingAddress, setShippingAddress] = useState('')
    const [notes, setNotes] = useState('')
    const [placing, setPlacing] = useState(false)
+   const [couponCode, setCouponCode] = useState('')
+   const [pointsToRedeem, setPointsToRedeem] = useState(0)
+   const [pointsBalance, setPointsBalance] = useState<number | null>(null)
+   const [coupons, setCoupons] = useState<any[] | null>(null)
+   const selectedCoupon = (coupons || []).find((c: any) => c.code === couponCode)
+
+   // Derived discounts preview
+   const couponDiscount = (() => {
+      if (!selectedCoupon) return 0
+      const meetsMin = !selectedCoupon.min_order_amount || totalPrice >= Number(selectedCoupon.min_order_amount)
+      if (!meetsMin) return 0
+      return selectedCoupon.discount_type === 'percent'
+         ? (totalPrice * Number(selectedCoupon.discount_value)) / 100
+         : Number(selectedCoupon.discount_value || 0)
+   })()
+   const normalizedPoints = Math.max(0, Math.min(pointsToRedeem || 0, typeof pointsBalance === 'number' ? pointsBalance : 0))
+   const pointsDiscount = Math.min((normalizedPoints * 0.01), Math.max(totalPrice - couponDiscount, 0))
+   const estimatedTotal = Math.max(totalPrice - couponDiscount - pointsDiscount, 0)
 
    // Redirect to home page if user is not authenticated
    useEffect(() => {
@@ -24,6 +42,42 @@ export default function CartPage() {
          router.push('/')
       }
    }, [isAuthenticated, router])
+
+   // Load points balance
+   useEffect(() => {
+      async function loadPoints() {
+         if (!isAuthenticated) return
+         try {
+            const res = await fetch('/api/users/points', {
+               headers: {
+                  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+               },
+            })
+            if (!res.ok) return
+            const data = await res.json()
+            setPointsBalance(Number(data?.balance || 0))
+         } catch (_) { }
+      }
+      loadPoints()
+   }, [isAuthenticated, token])
+
+   // Load coupons explicitly so you can see the request in Network tab
+   useEffect(() => {
+      async function loadCoupons() {
+         if (!isAuthenticated) return
+         try {
+            const res = await fetch('/api/users/coupons?onlyAvailable=1', {
+               headers: {
+                  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+               },
+            })
+            if (!res.ok) return
+            const data = await res.json()
+            setCoupons(Array.isArray(data) ? data : [])
+         } catch (_) { }
+      }
+      loadCoupons()
+   }, [isAuthenticated, token])
 
    function checkout() {
       if (items.length === 0) {
@@ -51,6 +105,8 @@ export default function CartPage() {
                billingAddress: shippingAddress,
                paymentMethod: 'COD',
                notes: notes || undefined,
+               couponCode: couponCode || undefined,
+               pointsToRedeem: pointsToRedeem > 0 ? pointsToRedeem : 0,
             })
          })
          if (!res.ok) {
@@ -59,6 +115,12 @@ export default function CartPage() {
          }
          const data = await res.json()
          showToast.success('Order placed successfully')
+         if (data?.discounts) {
+            const { coupon = 0, points = 0 } = data.discounts
+            if (coupon || points) {
+               showToast.info(`Discounts applied - Coupon: $${Number(coupon).toFixed(2)}, Points: $${Number(points).toFixed(2)}`)
+            }
+         }
          await clearCart()
          router.push('/orders')
       } catch (e: any) {
@@ -131,6 +193,50 @@ export default function CartPage() {
                               placeholder="Any additional notes"
                               className="w-full rounded-lg bg-white/10 border border-white/20 p-2 text-white"
                            />
+                           <label className="block text-sm text-white/80">Coupon</label>
+                           <div className="flex gap-2">
+                              <select
+                                 value={couponCode}
+                                 onChange={(e) => setCouponCode(e.target.value)}
+                                 className="flex-1 rounded-lg bg-white/10 border border-white/20 p-2 text-white"
+                              >
+                                 <option value="">-- No coupon --</option>
+                                 {(coupons || []).map((c: any) => (
+                                    <option key={c.code} value={c.code}>
+                                       {c.code} ({c.discount_type === 'percent' ? `${c.discount_value}%` : `$${Number(c.discount_value).toFixed(2)}`})
+                                    </option>
+                                 ))}
+                              </select>
+                              {couponCode && (
+                                 <button type="button" onClick={() => setCouponCode('')} className="rounded px-3 py-2 border border-white/20 bg-white/10">Clear</button>
+                              )}
+                           </div>
+                           <p className="text-xs text-white/60">Only one coupon can be applied per order.</p>
+                           {selectedCoupon && (
+                              <div className="text-xs text-white/60 mt-1">
+                                 {selectedCoupon.min_order_amount ? `Min order: $${Number(selectedCoupon.min_order_amount).toFixed(2)}. ` : ''}
+                                 {selectedCoupon.expires_at ? `Expires: ${new Date(selectedCoupon.expires_at).toLocaleDateString()}` : 'No expiry'}
+                              </div>
+                           )}
+                           <div>
+                              <label className="block text-sm text-white/80">Redeem Points {typeof pointsBalance === 'number' ? `(Available: ${pointsBalance})` : ''}</label>
+                              <input
+                                 type="number"
+                                 min={0}
+                                 value={pointsToRedeem}
+                                 onChange={(e) => setPointsToRedeem(Math.max(0, Math.min(Number(e.target.value) || 0, typeof pointsBalance === 'number' ? pointsBalance : 0)))}
+                                 placeholder="0"
+                                 className="w-full rounded-lg bg-white/10 border border-white/20 p-2 text-white"
+                              />
+                              <p className="text-xs text-white/60 mt-1">1 point = $0.01</p>
+                           </div>
+                        </div>
+                        {/* Summary with discount preview */}
+                        <div className="mt-4 space-y-2 text-sm">
+                           <div className="flex items-center justify-between text-white/80"><span>Subtotal</span><span className="text-white">${totalPrice.toFixed(2)}</span></div>
+                           <div className="flex items-center justify-between text-white/80"><span>Coupon discount</span><span className="text-green-300">-${couponDiscount.toFixed(2)}</span></div>
+                           <div className="flex items-center justify-between text-white/80"><span>Points discount</span><span className="text-green-300">-${pointsDiscount.toFixed(2)}</span></div>
+                           <div className="flex items-center justify-between font-semibold"><span>Estimated total</span><span>${estimatedTotal.toFixed(2)}</span></div>
                         </div>
                         <LoadingButton
                            className="btn-primary w-full rounded-full mb-3"

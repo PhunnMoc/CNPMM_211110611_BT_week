@@ -66,3 +66,18 @@ body {
 .glass-card {
   @apply bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl;
 }
+
+/* Improve dark <select> and options visibility */
+select {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+select:focus {
+  outline: none;
+  border-color: rgba(37, 99, 235, 0.6);
+}
+select option {
+  background-color: #0b061a;
+  color: #ffffff;
+}

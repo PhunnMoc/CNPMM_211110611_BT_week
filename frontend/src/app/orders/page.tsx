@@ -3,14 +3,17 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
+import { useGetUserCouponsQuery } from '@/store/api/api'
 import { showToast } from '@/utils/toast'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import type { OrderSummary } from '@/types/orderTypes'
 
 export default function OrdersPage() {
-   const { token } = useAuth()
+   const { token, isAuthenticated } = useAuth()
    const [orders, setOrders] = useState<OrderSummary[]>([])
    const [loading, setLoading] = useState(true)
+   const [pointsBalance, setPointsBalance] = useState<number | null>(null)
+   const { data: coupons } = useGetUserCouponsQuery({ onlyAvailable: true }, { skip: !isAuthenticated })
 
    useEffect(() => {
       if (!token) return
@@ -40,6 +43,22 @@ export default function OrdersPage() {
       return () => controller.abort()
    }, [token])
 
+   // Load points balance for header info
+   useEffect(() => {
+      async function loadPoints() {
+         if (!isAuthenticated) return
+         try {
+            const res = await fetch('/api/users/points', {
+               headers: token ? { Authorization: `Bearer ${token}` } : {},
+            })
+            if (!res.ok) return
+            const data = await res.json()
+            setPointsBalance(Number(data?.balance || 0))
+         } catch (_) { }
+      }
+      loadPoints()
+   }, [isAuthenticated, token])
+
    function fakeCheckout() {
       showToast.info('Checkout is not implemented yet')
    }
@@ -50,6 +69,13 @@ export default function OrdersPage() {
             <div className="flex items-center justify-between mb-6">
                <h1 className="text-2xl md:text-3xl font-bold">My Orders</h1>
                <div className="flex items-center gap-2">
+                  {typeof pointsBalance === 'number' && (
+                     <span className="px-3 py-1 rounded-full border border-white/20 text-sm text-white/80">Points: <span className="text-white">{pointsBalance}</span></span>
+                  )}
+                  {isAuthenticated && (
+                     <span className="px-3 py-1 rounded-full border border-white/20 text-sm text-white/80">Coupons: <span className="text-white">{(coupons || []).length}</span></span>
+                  )}
+                  <Link href="/cart" className="btn-primary rounded-full">Redeem</Link>
                   <Link href="/orders/history" className="btn-primary rounded-full">History</Link>
                   <Link href="/" className="btn-primary rounded-full">Home</Link>
                </div>
@@ -78,7 +104,7 @@ export default function OrdersPage() {
             )}
 
             <div className="mt-8 flex justify-end">
-               <button className="btn-primary rounded-full" onClick={fakeCheckout}>Proceed to checkout</button>
+               <Link href="/cart" className="btn-primary rounded-full">Go to Cart to Apply Coupon</Link>
             </div>
          </div>
       </div>

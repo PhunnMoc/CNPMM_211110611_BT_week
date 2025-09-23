@@ -1,4 +1,5 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
+import { logout } from '../slices/authSlice'
 import type { RootState } from '../index'
 import type {
   Product,
@@ -13,20 +14,31 @@ import type {
 } from '@/types'
 
 // Create the API slice
+const rawBaseQuery = fetchBaseQuery({
+  baseUrl: '/api',
+  prepareHeaders: (headers, { getState }) => {
+    const state = getState() as RootState | undefined
+    const token = state?.auth?.token
+    if (token) {
+      headers.set('authorization', `Bearer ${token}`)
+    }
+    return headers
+  },
+})
+
+// Wrap baseQuery to handle 401 globally (auto-logout on invalid/expired token)
+const baseQueryWithAuthHandling: typeof rawBaseQuery = async (args, api, extraOptions) => {
+  const result: any = await rawBaseQuery(args, api, extraOptions)
+  if (result?.error?.status === 401) {
+    api.dispatch(logout())
+  }
+  return result
+}
+
 export const api = createApi({
   reducerPath: 'api',
-  baseQuery: fetchBaseQuery({
-    baseUrl: '/api',
-    prepareHeaders: (headers, { getState }) => {
-      const state = getState() as RootState | undefined
-      const token = state?.auth?.token
-      if (token) {
-        headers.set('authorization', `Bearer ${token}`)
-      }
-      return headers
-    },
-  }),
-  tagTypes: ['Product', 'Category', 'User', 'Order'],
+  baseQuery: baseQueryWithAuthHandling,
+  tagTypes: ['Product', 'Category', 'User', 'Order', 'Review'],
   endpoints: (builder) => ({
     // Auth endpoints
     login: builder.mutation<LoginResponse, LoginRequest>({
@@ -159,6 +171,61 @@ export const api = createApi({
       }),
       invalidatesTags: ['Order'],
     }),
+
+    // Reviews endpoints
+    getReviews: builder.query<
+      { reviews: any[]; pagination: { page: number; limit: number; total: number } },
+      { productId: number; page?: number; limit?: number }
+    >({
+      query: ({ productId, page = 1, limit = 10 }) => {
+        const sp = new URLSearchParams({ productId: String(productId), page: String(page), limit: String(limit) })
+        return `/reviews?${sp.toString()}`
+      },
+      providesTags: (result, error, { productId }) => [{ type: 'Review', id: productId }],
+    }),
+
+    createReview: builder.mutation<
+      { message: string; rewards?: { pointsAwarded: number } },
+      { productId: number; rating: number; title?: string; comment?: string }
+    >({
+      query: (body) => ({ url: '/reviews', method: 'POST', body }),
+      invalidatesTags: (result, error, { productId }) => [{ type: 'Review', id: productId }, { type: 'Product', id: productId }],
+    }),
+
+    // Wishlist endpoints
+    getWishlist: builder.query<any[], void>({
+      query: () => '/users/wishlist',
+      providesTags: ['User'],
+    }),
+    addToWishlist: builder.mutation<{ message: string }, { productId: number }>({
+      query: ({ productId }) => ({ url: '/users/wishlist', method: 'POST', body: { productId } }),
+      invalidatesTags: ['User'],
+    }),
+    removeFromWishlist: builder.mutation<{ message: string }, { productId: number }>({
+      query: ({ productId }) => ({ url: `/users/wishlist/${productId}`, method: 'DELETE' }),
+      invalidatesTags: ['User'],
+    }),
+
+    // Record product view
+    recordProductView: builder.mutation<{ message: string }, number>({
+      query: (id) => ({ url: `/products/${id}/view`, method: 'POST' }),
+    }),
+
+    // Recently viewed products
+    getRecentProducts: builder.query<any[], void>({
+      query: () => '/products/recent/list',
+      providesTags: ['Product'],
+    }),
+
+    // User coupons
+    getUserCoupons: builder.query<any[], { onlyAvailable?: boolean } | void>({
+      query: (arg) => {
+        const onlyAvailable = (arg as any)?.onlyAvailable ?? true
+        const sp = new URLSearchParams({ onlyAvailable: onlyAvailable ? '1' : '0' })
+        return `/users/coupons?${sp.toString()}`
+      },
+      providesTags: ['User'],
+    }),
   }),
 })
 
@@ -178,4 +245,12 @@ export const {
   useCreateOrderMutation,
   useUpdateOrderStatusMutation,
   useCancelOrderMutation,
+  useGetReviewsQuery,
+  useCreateReviewMutation,
+  useGetWishlistQuery,
+  useAddToWishlistMutation,
+  useRemoveFromWishlistMutation,
+  useRecordProductViewMutation,
+  useGetRecentProductsQuery,
+  useGetUserCouponsQuery,
 } = api

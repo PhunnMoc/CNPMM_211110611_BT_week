@@ -165,6 +165,8 @@ router.post(
       .withMessage("Shipping address is required"),
     body("paymentMethod").notEmpty().withMessage("Payment method is required"),
     body("billingAddress").optional().isString(),
+    body("couponCode").optional().isString(),
+    body("pointsToRedeem").optional().isInt({ min: 0 }),
   ],
   async (req, res) => {
     try {
@@ -174,8 +176,14 @@ router.post(
       }
 
       const userId = req.user.id;
-      const { shippingAddress, billingAddress, paymentMethod, notes } =
-        req.body;
+      const {
+        shippingAddress,
+        billingAddress,
+        paymentMethod,
+        notes,
+        couponCode,
+        pointsToRedeem = 0,
+      } = req.body;
 
       // Get cart items
       const cartQuery = `
@@ -218,6 +226,77 @@ router.post(
           price: price,
         });
       }
+
+      // Calculate discounts (coupon and points)
+      let couponDiscount = 0;
+      let appliedCouponId = null;
+      let pointsDiscount = 0;
+      let pointsToUse = Math.max(parseInt(pointsToRedeem, 10) || 0, 0);
+
+      // Load coupon if provided
+      try {
+        if (couponCode) {
+          const [rows] = await pool.execute(
+            `SELECT uc.id as user_coupon_id, c.id as coupon_id, c.discount_type, c.discount_value, c.min_order_amount, c.expires_at, c.is_active
+             FROM user_coupons uc
+             JOIN coupons c ON uc.coupon_id = c.id
+             WHERE uc.user_id = ? AND c.code = ? AND uc.is_redeemed = 0`,
+            [userId, couponCode]
+          );
+          const coupon = rows?.[0];
+          if (coupon && coupon.is_active) {
+            const notExpired =
+              !coupon.expires_at || new Date(coupon.expires_at) > new Date();
+            const meetsMin =
+              !coupon.min_order_amount ||
+              totalAmount >= Number(coupon.min_order_amount);
+            if (notExpired && meetsMin) {
+              if (coupon.discount_type === "percent") {
+                couponDiscount =
+                  (totalAmount * Number(coupon.discount_value)) / 100;
+              } else {
+                couponDiscount = Number(coupon.discount_value);
+              }
+              appliedCouponId = coupon.user_coupon_id;
+            }
+          }
+        }
+      } catch (_) {
+        // ignore coupon errors, proceed without coupon
+        couponDiscount = 0;
+        appliedCouponId = null;
+      }
+
+      // Load points balance if redeeming
+      try {
+        if (pointsToUse > 0) {
+          const [[balanceRow]] = await pool.query(
+            `SELECT balance FROM user_points WHERE user_id = ? LIMIT 1`,
+            [userId]
+          );
+          const balance = Number(balanceRow?.balance || 0);
+          if (balance <= 0) {
+            pointsToUse = 0;
+          } else if (pointsToUse > balance) {
+            pointsToUse = balance;
+          }
+          // Conversion: 1 point = 0.01 currency unit
+          const conversion = 0.01;
+          const maxDiscountPossible = Math.max(totalAmount - couponDiscount, 0);
+          pointsDiscount = Math.min(
+            pointsToUse * conversion,
+            maxDiscountPossible
+          );
+          // Adjust points to actual used (in case we capped by remaining amount)
+          pointsToUse = Math.floor(pointsDiscount / conversion);
+        }
+      } catch (_) {
+        pointsToUse = 0;
+        pointsDiscount = 0;
+      }
+
+      // Apply discounts
+      totalAmount = Math.max(totalAmount - couponDiscount - pointsDiscount, 0);
 
       // Start transaction
       const connection = await pool.getConnection();
@@ -272,6 +351,28 @@ router.post(
           userId,
         ]);
 
+        // If coupon applied, mark user coupon as redeemed
+        if (appliedCouponId) {
+          await connection.execute(
+            `UPDATE user_coupons SET is_redeemed = 1, redeemed_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`,
+            [appliedCouponId, userId]
+          );
+        }
+
+        // If points used, deduct balance and log transaction
+        if (pointsToUse > 0) {
+          await connection.execute(
+            `INSERT INTO user_points (user_id, balance) VALUES (?, ?)
+             ON DUPLICATE KEY UPDATE balance = GREATEST(balance - VALUES(balance), 0), updated_at = CURRENT_TIMESTAMP`,
+            [userId, pointsToUse]
+          );
+          await connection.execute(
+            `INSERT INTO point_transactions (user_id, points, reason, reference_type, reference_id)
+             VALUES (?, ?, 'Redeemed on order', 'order', ?)`,
+            [userId, -pointsToUse, orderId]
+          );
+        }
+
         await connection.commit();
 
         res.status(201).json({
@@ -279,6 +380,10 @@ router.post(
           orderId,
           orderNumber,
           totalAmount,
+          discounts: {
+            coupon: Number(couponDiscount.toFixed(2)),
+            points: Number(pointsDiscount.toFixed(2)),
+          },
         });
       } catch (error) {
         await connection.rollback();
@@ -384,12 +489,9 @@ router.put("/:id/cancel", authenticateToken, async (req, res) => {
           .status(202)
           .json({ message: "Cancellation request sent to shop" });
       }
-      return res
-        .status(400)
-        .json({
-          message:
-            "Order can only be cancelled within 30 minutes while pending",
-        });
+      return res.status(400).json({
+        message: "Order can only be cancelled within 30 minutes while pending",
+      });
     }
 
     // Start transaction

@@ -66,6 +66,10 @@ INSERT INTO users (username, email, password_hash, first_name, last_name, phone,
 ('john_doe', 'john@example.com', '$2b$10$rQZ8kF5jK9mN2pL3qR7sTuVwXyZ1aB4cD6eF8gH9iJ0kL1mN2oP3qR4sT5uV6wX7yZ8', 'John', 'Doe', '+1234567891', FALSE),
 ('jane_smith', 'jane@example.com', '$2b$10$rQZ8kF5jK9mN2pL3qR7sTuVwXyZ1aB4cD6eF8gH9iJ0kL1mN2oP3qR4sT5uV6wX7yZ8', 'Jane', 'Smith', '+1234567892', FALSE);
 
+-- Add requested user (password: 123456, bcrypt hash, 10 rounds)
+INSERT INTO users (username, email, password_hash, first_name, last_name, phone, is_admin) VALUES
+('user', 'user@gmail.com', '$2b$10$6yWk3b8gB0l7v5x8cG3j3eZCq1Yt0y8xJj6X2kCw9rXrG2p6sXo8G', 'User', 'Demo', NULL, FALSE);
+
 -- Insert sample user addresses
 INSERT INTO user_addresses (user_id, type, first_name, last_name, address_line_1, city, state, postal_code, country, phone, is_default) VALUES
 (2, 'shipping', 'John', 'Doe', '123 Main St', 'New York', 'NY', '10001', 'United States', '+1234567891', TRUE),
@@ -91,3 +95,37 @@ INSERT INTO wishlist (user_id, product_id) VALUES
 (2, 7),
 (3, 1),
 (3, 5);
+
+-- Insert sample coupons
+INSERT IGNORE INTO coupons (code, description, discount_type, discount_value, min_order_amount, expires_at, is_active) VALUES
+('SAVE10', '10% off any order', 'percent', 10, 0, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 60 DAY), TRUE),
+('WELCOME5', 'Welcome $5 off your first order', 'fixed', 5.00, 0, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 90 DAY), TRUE),
+('VIP15', '15% off orders over $100', 'percent', 15, 100.00, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 120 DAY), TRUE);
+
+-- Grant coupons to users (manual)
+-- Grant to john@example.com
+INSERT IGNORE INTO user_coupons (user_id, coupon_id, granted_reason)
+SELECT u.id, c.id, 'manual'
+FROM users u JOIN coupons c ON c.code = 'SAVE10'
+WHERE u.email = 'john@example.com';
+INSERT IGNORE INTO user_coupons (user_id, coupon_id, granted_reason)
+SELECT u.id, c.id, 'manual'
+FROM users u JOIN coupons c ON c.code = 'WELCOME5'
+WHERE u.email = 'john@example.com';
+
+-- Grant to jane@example.com
+INSERT IGNORE INTO user_coupons (user_id, coupon_id, granted_reason)
+SELECT u.id, c.id, 'manual'
+FROM users u JOIN coupons c ON c.code = 'SAVE10'
+WHERE u.email = 'jane@example.com';
+-- If the demo user exists (email user@gmail.com), grant VIP15
+INSERT IGNORE INTO user_coupons (user_id, coupon_id, granted_reason)
+SELECT u.id, c.id, 'manual'
+FROM users u CROSS JOIN coupons c
+WHERE u.email = 'user@gmail.com' AND c.code = 'VIP15';
+
+-- Grant the same set of coupons to ALL users (idempotent)
+INSERT IGNORE INTO user_coupons (user_id, coupon_id, granted_reason)
+SELECT u.id, c.id, 'manual'
+FROM users u
+JOIN coupons c ON c.code IN ('SAVE10','WELCOME5','VIP15');

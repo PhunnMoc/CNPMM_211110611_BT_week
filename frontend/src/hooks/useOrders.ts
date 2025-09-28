@@ -138,6 +138,7 @@ export const useOrderStatus = (orderId: number) => {
     isPreparing: order?.status === 'preparing',
     isShipping: order?.status === 'shipping',
     isDelivered: order?.status === 'delivered',
+    isCompleted: order?.status === 'completed',
     isCancelled: order?.status === 'cancelled',
   }
   
@@ -146,19 +147,19 @@ export const useOrderStatus = (orderId: number) => {
   
   const statusLabel = {
     pending: 'New Order',
-    confirmed: 'Confirmed',
-    preparing: 'Preparing',
-    shipping: 'Shipping',
+    processing: 'Processing',
+    shipped: 'Shipped',
     delivered: 'Delivered',
+    completed: 'Completed',
     cancelled: 'Cancelled',
   }[order?.status || 'pending']
   
   const statusColor = {
     pending: 'text-yellow-600',
-    confirmed: 'text-blue-600',
-    preparing: 'text-orange-600',
-    shipping: 'text-purple-600',
+    processing: 'text-blue-600',
+    shipped: 'text-purple-600',
     delivered: 'text-green-600',
+    completed: 'text-emerald-600',
     cancelled: 'text-red-600',
   }[order?.status || 'pending']
   

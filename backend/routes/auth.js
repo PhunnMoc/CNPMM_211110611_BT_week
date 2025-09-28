@@ -94,7 +94,7 @@ router.post(
 
       // Find user
       const [users] = await pool.execute(
-        "SELECT id, username, email, password_hash, first_name, last_name, is_active FROM users WHERE email = ?",
+        "SELECT id, username, email, password_hash, first_name, last_name, is_active, is_admin FROM users WHERE email = ?",
         [email]
       );
 
@@ -133,6 +133,7 @@ router.post(
           email: user.email,
           firstName: user.first_name,
           lastName: user.last_name,
+          isAdmin: user.is_admin,
         },
       });
     } catch (error) {
@@ -152,6 +153,7 @@ router.get("/me", authenticateToken, async (req, res) => {
         email: req.user.email,
         firstName: req.user.first_name,
         lastName: req.user.last_name,
+        isAdmin: req.user.is_admin,
       },
     });
   } catch (error) {

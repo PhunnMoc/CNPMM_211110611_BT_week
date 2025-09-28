@@ -5,6 +5,7 @@ import { Providers } from './providers'
 import { Toaster } from 'react-hot-toast'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
+import ConditionalLayout from '@/components/ConditionalLayout'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -22,11 +23,9 @@ export default function RootLayout({
       <html lang="en">
          <body className={inter.className}>
             <Providers>
-               <Header />
-               <main>
+               <ConditionalLayout>
                   {children}
-               </main>
-               <Footer />
+               </ConditionalLayout>
                <Toaster position="top-right" />
             </Providers>
          </body>

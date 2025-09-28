@@ -14,7 +14,7 @@ router.get("/profile", authenticateToken, async (req, res) => {
     const query = `
       SELECT 
         id, username, email, first_name, last_name, phone, avatar_url,
-        created_at, updated_at
+        is_admin, created_at, updated_at
       FROM users 
       WHERE id = ? AND is_active = 1
     `;
@@ -25,7 +25,19 @@ router.get("/profile", authenticateToken, async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.json(users[0]);
+    const user = users[0];
+    res.json({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      phone: user.phone,
+      avatarUrl: user.avatar_url,
+      isAdmin: user.is_admin,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at,
+    });
   } catch (error) {
     console.error("Get profile error:", error);
     res.status(500).json({ message: "Server error while fetching profile" });

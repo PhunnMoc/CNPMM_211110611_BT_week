@@ -12,7 +12,7 @@ export interface Order {
   id: number
   user_id: number
   total_amount: number
-  status: 'pending' | 'confirmed' | 'preparing' | 'shipping' | 'delivered' | 'cancelled'
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'completed' | 'cancelled'
   shipping_address: string
   phone: string
   notes?: string

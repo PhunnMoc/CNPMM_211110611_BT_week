@@ -2,8 +2,12 @@ const express = require("express");
 const { body, validationResult } = require("express-validator");
 const pool = require("../config/database");
 const { authenticateToken } = require("../middleware/auth");
+const NotificationService = require("../services/notificationService");
 
 const router = express.Router();
+
+// Order status progression timers
+const statusTimers = new Map(); // orderId -> timer
 
 // Generate unique order number
 function generateOrderNumber() {
@@ -12,6 +16,89 @@ function generateOrderNumber() {
     .toString()
     .padStart(3, "0");
   return `ORD-${timestamp}-${random}`;
+}
+
+// Schedule automatic order status progression
+function scheduleStatusProgression(orderId, userId, socketServer) {
+  // Clear existing timer if any
+  if (statusTimers.has(orderId)) {
+    clearTimeout(statusTimers.get(orderId));
+  }
+
+  // Set timer for 30 seconds
+  const timer = setTimeout(async () => {
+    try {
+      // Get current order status
+      const [orders] = await pool.execute(
+        "SELECT status FROM orders WHERE id = ?",
+        [orderId]
+      );
+
+      if (orders.length === 0) {
+        console.log(`Order ${orderId} not found for status progression`);
+        return;
+      }
+
+      const currentStatus = orders[0].status;
+      let nextStatus = null;
+
+      // Define status progression
+      switch (currentStatus) {
+        case "pending":
+          nextStatus = "processing";
+          break;
+        case "processing":
+          nextStatus = "shipped";
+          break;
+        case "shipped":
+          nextStatus = "delivered";
+          break;
+        case "delivered":
+          nextStatus = "completed";
+          break;
+        case "completed":
+        case "cancelled":
+          // No further progression
+          return;
+        default:
+          console.log(`Unknown status ${currentStatus} for order ${orderId}`);
+          return;
+      }
+
+      // Update order status
+      await pool.execute(
+        "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?",
+        [nextStatus, orderId]
+      );
+
+      console.log(
+        `Order ${orderId} status updated from ${currentStatus} to ${nextStatus}`
+      );
+
+      // Send notification
+      const notificationService = new NotificationService(socketServer);
+      await notificationService.notifyOrderUpdate(userId, orderId, nextStatus, {
+        autoProgression: true,
+        previousStatus: currentStatus,
+      });
+
+      // Schedule next progression if not final status
+      if (nextStatus !== "completed" && nextStatus !== "cancelled") {
+        scheduleStatusProgression(orderId, userId, socketServer);
+      } else {
+        // Remove timer from map when order is completed
+        statusTimers.delete(orderId);
+      }
+    } catch (error) {
+      console.error(`Error in status progression for order ${orderId}:`, error);
+      statusTimers.delete(orderId);
+    }
+  }, 30000); // 30 seconds
+
+  statusTimers.set(orderId, timer);
+  console.log(
+    `Scheduled status progression for order ${orderId} in 30 seconds`
+  );
 }
 
 // Get user's orders
@@ -23,15 +110,47 @@ router.get("/", authenticateToken, async (req, res) => {
     const limitNum = parseInt(req.query.limit, 10) || 10;
     const offsetNum = (pageNum - 1) * limitNum;
 
-    // Auto-confirm orders after 30 minutes (pending -> processing)
+    // Auto-confirm orders after 30 seconds (pending -> processing)
     try {
-      await pool.execute(
+      const [updatedOrders] = await pool.execute(
         `UPDATE orders 
          SET status = 'processing', updated_at = CURRENT_TIMESTAMP
          WHERE user_id = ? AND status = 'pending'
-           AND TIMESTAMPDIFF(MINUTE, created_at, CURRENT_TIMESTAMP) >= 30`,
+           AND TIMESTAMPDIFF(SECOND, created_at, CURRENT_TIMESTAMP) >= 30`,
         [userId]
       );
+
+      // Send notifications for auto-confirmed orders
+      if (updatedOrders.affectedRows > 0) {
+        const [confirmedOrders] = await pool.execute(
+          `SELECT id, order_number FROM orders 
+           WHERE user_id = ? AND status = 'processing' 
+           AND TIMESTAMPDIFF(SECOND, created_at, CURRENT_TIMESTAMP) <= 1`,
+          [userId]
+        );
+
+        for (const order of confirmedOrders) {
+          try {
+            const notificationService = new NotificationService(
+              req.app.get("socketServer")
+            );
+            await notificationService.notifyOrderUpdate(
+              userId,
+              order.id,
+              "processing",
+              {
+                orderNumber: order.order_number,
+                autoConfirmed: true,
+              }
+            );
+          } catch (notificationError) {
+            console.error(
+              "Failed to send auto-confirmation notification:",
+              notificationError
+            );
+          }
+        }
+      }
     } catch (e) {
       // Non-fatal
     }
@@ -374,6 +493,48 @@ router.post(
         }
 
         await connection.commit();
+
+        // Send notification for order creation
+        try {
+          const notificationService = new NotificationService(
+            req.app.get("socketServer")
+          );
+          await notificationService.notifyOrderUpdate(
+            userId,
+            orderId,
+            "pending",
+            {
+              orderNumber,
+              totalAmount,
+              itemCount: orderItems.length,
+              discounts: {
+                coupon: Number(couponDiscount.toFixed(2)),
+                points: Number(pointsDiscount.toFixed(2)),
+              },
+            }
+          );
+        } catch (notificationError) {
+          console.error(
+            "Failed to send order notification:",
+            notificationError
+          );
+          // Don't fail the order creation if notification fails
+        }
+
+        // Schedule automatic status progression
+        try {
+          scheduleStatusProgression(
+            orderId,
+            userId,
+            req.app.get("socketServer")
+          );
+        } catch (progressionError) {
+          console.error(
+            "Failed to schedule status progression:",
+            progressionError
+          );
+          // Don't fail the order creation if progression scheduling fails
+        }
 
         res.status(201).json({
           message: "Order created successfully",

@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const http = require("http");
 require("dotenv").config();
 
 const authRoutes = require("./routes/auth");
@@ -11,10 +12,23 @@ const cartRoutes = require("./routes/cart");
 const orderRoutes = require("./routes/orders");
 const userRoutes = require("./routes/users");
 const reviewRoutes = require("./routes/reviews");
+const notificationRoutes = require("./routes/notifications");
+const statisticsRoutes = require("./routes/statistics");
+const adminRoutes = require("./routes/admin");
+
+// Import Socket.IO server
+const SocketServer = require("./socket/socketServer");
 
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 const isDev = process.env.NODE_ENV !== "production";
+
+// Initialize Socket.IO server
+const socketServer = new SocketServer(server);
+
+// Make socket server available to routes
+app.set("socketServer", socketServer);
 
 // Behind Next.js proxy in dev
 app.set("trust proxy", 1);
@@ -58,6 +72,9 @@ app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/statistics", statisticsRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -73,7 +90,8 @@ app.use("*", (req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
+  console.log(`WebSocket server is running on ws://localhost:${PORT}`);
 });

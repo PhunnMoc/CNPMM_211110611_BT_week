@@ -62,13 +62,10 @@ INSERT INTO product_images (product_id, image_url, alt_text, is_primary, sort_or
 -- Insert sample users (passwords are hashed with bcrypt)
 -- Password for all test users is: password123
 INSERT INTO users (username, email, password_hash, first_name, last_name, phone, is_admin) VALUES
-('admin', 'admin@shopping.com', '$2b$10$rQZ8kF5jK9mN2pL3qR7sTuVwXyZ1aB4cD6eF8gH9iJ0kL1mN2oP3qR4sT5uV6wX7yZ8', 'Admin', 'User', '+1234567890', TRUE),
+('admin', 'admin@gmail.com', '$2b$10$rQZ8kF5jK9mN2pL3qR7sTuVwXyZ1aB4cD6eF8gH9iJ0kL1mN2oP3qR4sT5uV6wX7yZ8', 'Admin', 'User', '+1234567890', TRUE),
 ('john_doe', 'john@example.com', '$2b$10$rQZ8kF5jK9mN2pL3qR7sTuVwXyZ1aB4cD6eF8gH9iJ0kL1mN2oP3qR4sT5uV6wX7yZ8', 'John', 'Doe', '+1234567891', FALSE),
 ('jane_smith', 'jane@example.com', '$2b$10$rQZ8kF5jK9mN2pL3qR7sTuVwXyZ1aB4cD6eF8gH9iJ0kL1mN2oP3qR4sT5uV6wX7yZ8', 'Jane', 'Smith', '+1234567892', FALSE);
 
--- Add requested user (password: 123456, bcrypt hash, 10 rounds)
-INSERT INTO users (username, email, password_hash, first_name, last_name, phone, is_admin) VALUES
-('user', 'user@gmail.com', '$2b$10$6yWk3b8gB0l7v5x8cG3j3eZCq1Yt0y8xJj6X2kCw9rXrG2p6sXo8G', 'User', 'Demo', NULL, FALSE);
 
 -- Insert sample user addresses
 INSERT INTO user_addresses (user_id, type, first_name, last_name, address_line_1, city, state, postal_code, country, phone, is_default) VALUES

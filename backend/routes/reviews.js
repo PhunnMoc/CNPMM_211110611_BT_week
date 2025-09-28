@@ -2,6 +2,7 @@ const express = require("express");
 const { body, validationResult, query } = require("express-validator");
 const pool = require("../config/database");
 const { authenticateToken } = require("../middleware/auth");
+const NotificationService = require("../services/notificationService");
 
 const router = express.Router();
 
@@ -119,11 +120,9 @@ router.post(
     try {
       const verified = await hasDeliveredPurchase(userId, productId);
       if (!verified) {
-        return res
-          .status(403)
-          .json({
-            message: "Only verified purchasers can review this product",
-          });
+        return res.status(403).json({
+          message: "Only verified purchasers can review this product",
+        });
       }
 
       const connection = await pool.getConnection();
@@ -149,6 +148,28 @@ router.post(
         }
 
         await connection.commit();
+
+        // Send notification for new review
+        try {
+          const notificationService = new NotificationService(
+            req.app.get("socketServer")
+          );
+          await notificationService.notifyReviewReceived(productId, {
+            userId,
+            rating,
+            title,
+            comment,
+            isVerifiedPurchase: true,
+            rewards,
+          });
+        } catch (notificationError) {
+          console.error(
+            "Failed to send review notification:",
+            notificationError
+          );
+          // Don't fail the review creation if notification fails
+        }
+
         res.status(201).json({ message: "Review saved", rewards });
       } catch (e) {
         await connection.rollback();

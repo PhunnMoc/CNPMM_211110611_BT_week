@@ -8,6 +8,8 @@ import { combineReducers } from '@reduxjs/toolkit'
 import authReducer from './slices/authSlice'
 import cartReducer from './slices/cartSlice'
 import uiReducer from './slices/uiSlice'
+import webSocketReducer from './slices/webSocketSlice'
+import notificationsReducer from './slices/notificationsSlice'
 
 // Import API services
 import { api } from './api/api'
@@ -39,6 +41,8 @@ const rootReducer = combineReducers({
   auth: authReducer,
   cart: cartReducer,
   ui: uiReducer,
+  webSocket: webSocketReducer,
+  notifications: notificationsReducer,
   [api.reducerPath]: api.reducer,
 })
 
@@ -49,7 +53,12 @@ export const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {
-        ignoredActions: ['persist/PERSIST', 'persist/REHYDRATE'],
+        ignoredActions: [
+          'persist/PERSIST', 
+          'persist/REHYDRATE',
+          'webSocket/setSocket', // Ignore WebSocket actions that might contain non-serializable data
+        ],
+        ignoredPaths: ['webSocket.socket'], // Ignore socket in state if it exists
       },
     }).concat(api.middleware),
   devTools: process.env.NODE_ENV !== 'production',
@@ -62,3 +71,9 @@ setupListeners(store.dispatch)
 
 export type RootState = ReturnType<typeof store.getState>
 export type AppDispatch = typeof store.dispatch
+
+// Typed hooks
+import { useDispatch, useSelector, TypedUseSelectorHook } from 'react-redux'
+
+export const useAppDispatch = () => useDispatch<AppDispatch>()
+export const useAppSelector: TypedUseSelectorHook<RootState> = useSelector

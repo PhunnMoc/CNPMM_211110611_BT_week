@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ShoppingCart, User, Search, Menu, X, LogOut, Package, UserRound } from 'lucide-react'
+import { ShoppingCart, User, Search, Menu, X, LogOut, Package, UserRound, Bell } from 'lucide-react'
 import { useCartAPI } from '@/hooks/useCartAPI'
 import { useAuth } from '@/hooks/useAuth'
 import { SmartImage } from '@/components/SmartImage'
+import { NotificationDropdown } from '@/components/NotificationDropdown'
 
 export function Header() {
    const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -51,6 +52,9 @@ export function Header() {
 
                {/* Right side icons */}
                <div className="flex items-center space-x-4">
+                  {/* Notifications - only show when user is authenticated */}
+                  {isAuthenticated && <NotificationDropdown />}
+
                   {/* Cart - only show when user is authenticated */}
                   {isAuthenticated && (
                      <Link href="/cart" className="relative p-2 text-white/80 hover:text-white">
@@ -111,6 +115,10 @@ export function Header() {
                                        <Package className="h-4 w-4" />
                                        <span>Order History</span>
                                     </Link>
+                                    <Link href="/notifications" className="flex items-center gap-2 px-4 py-2 hover:bg-white/10">
+                                       <Bell className="h-4 w-4" />
+                                       <span>Notifications</span>
+                                    </Link>
                                  </div>
                                  <div className="border-t border-white/10">
                                     <button onClick={logout} className="flex w-full items-center gap-2 px-4 py-2 text-left hover:bg-white/10">
@@ -156,7 +164,7 @@ export function Header() {
                      <Link href="/about" className="text-white/80 hover:text-white font-medium">
                         About
                      </Link>
-                     <div className="pt-4 border-t border-gray-200">
+                     <div className="pt-4 border-t border-white/20">
                         <input
                            type="text"
                            placeholder="Search products..."

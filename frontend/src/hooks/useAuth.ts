@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { useRouter } from 'next/navigation'
 import { AppDispatch, RootState } from '../store'
 import { 
   loginStart, 
@@ -20,6 +21,7 @@ import { showToast } from '../utils/toast'
 
 export const useAuth = () => {
   const dispatch = useDispatch<AppDispatch>()
+  const router = useRouter()
   // Non-null assertion: `auth` slice always exists in our store shape
   const auth = useSelector((state: RootState) => state.auth)!
   
@@ -39,11 +41,11 @@ export const useAuth = () => {
         id: userProfile.id,
         username: userProfile.username,
         email: userProfile.email,
-        firstName: userProfile.firstName ?? userProfile.firstName,
-        lastName: userProfile.lastName ?? userProfile.lastName,
+        firstName: userProfile.firstName,
+        lastName: userProfile.lastName,
         phone: userProfile.phone,
-        avatarUrl: userProfile.avatarUrl ?? userProfile.avatarUrl ?? null,
-        isAdmin: userProfile.isAdmin ?? userProfile.isAdmin,
+        avatarUrl: userProfile.avatarUrl ?? null,
+        isAdmin: userProfile.isAdmin ?? false,
       }
       dispatch(updateUser(normalized))
     }
@@ -89,7 +91,8 @@ export const useAuth = () => {
   const logoutUser = useCallback(() => {
     dispatch(logout())
     showToast.info('Logged out successfully')
-  }, [dispatch])
+    router.push('/auth/signin')
+  }, [dispatch, router])
 
   const updateProfile = useCallback(async (userData: Partial<{
     firstName: string

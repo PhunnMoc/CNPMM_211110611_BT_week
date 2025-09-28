@@ -21,8 +21,13 @@ export default function SignInPage() {
          return
       }
       try {
-         await login(email, password)
-         router.push('/')
+         const result = await login(email, password)
+         // Redirect based on user role
+         if (result.user.isAdmin) {
+            router.push('/admin')
+         } else {
+            router.push('/')
+         }
       } catch (err: unknown) {
          // Error handling is done in the useAuth hook
       }

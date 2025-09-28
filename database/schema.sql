@@ -82,7 +82,7 @@ CREATE TABLE orders (
     id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT NOT NULL,
     order_number VARCHAR(50) UNIQUE NOT NULL,
-    status ENUM('pending', 'processing', 'shipped', 'delivered', 'cancelled') DEFAULT 'pending',
+    status ENUM('pending', 'processing', 'shipped', 'delivered', 'completed', 'cancelled') DEFAULT 'pending',
     total_amount DECIMAL(10, 2) NOT NULL,
     shipping_address TEXT NOT NULL,
     billing_address TEXT,
@@ -220,4 +220,23 @@ CREATE TABLE IF NOT EXISTS user_coupons (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (coupon_id) REFERENCES coupons(id) ON DELETE CASCADE,
     UNIQUE KEY uniq_user_coupon (user_id, coupon_id)
+);
+
+-- Notifications table for real-time notifications
+CREATE TABLE IF NOT EXISTS notifications (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    type ENUM('order_update', 'review_notification', 'price_change', 'stock_alert', 'coupon_expiry', 'admin_notification', 'general') NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    message TEXT NOT NULL,
+    data JSON NULL, -- Additional data for the notification
+    is_read BOOLEAN DEFAULT FALSE,
+    is_sent BOOLEAN DEFAULT FALSE, -- Whether notification was sent via WebSocket
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    read_at TIMESTAMP NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_notifications_user (user_id),
+    INDEX idx_notifications_type (type),
+    INDEX idx_notifications_read (is_read),
+    INDEX idx_notifications_created (created_at)
 );

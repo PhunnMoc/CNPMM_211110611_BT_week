@@ -38,7 +38,7 @@ const baseQueryWithAuthHandling: typeof rawBaseQuery = async (args, api, extraOp
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithAuthHandling,
-  tagTypes: ['Product', 'Category', 'User', 'Order', 'Review'],
+  tagTypes: ['Product', 'Category', 'User', 'Order', 'Review', 'Notification', 'Statistics', 'Admin'],
   endpoints: (builder) => ({
     // Auth endpoints
     login: builder.mutation<LoginResponse, LoginRequest>({
@@ -226,6 +226,184 @@ export const api = createApi({
       },
       providesTags: ['User'],
     }),
+
+    // Notifications endpoints
+    getNotifications: builder.query<{
+      notifications: any[];
+      pagination: { page: number; limit: number; total: number; totalPages: number };
+    }, { page?: number; limit?: number; unreadOnly?: boolean }>({
+      query: ({ page = 1, limit = 20, unreadOnly = false } = {}) => {
+        const params = new URLSearchParams()
+        params.append('page', page.toString())
+        params.append('limit', limit.toString())
+        if (unreadOnly) params.append('unread_only', 'true')
+        return `/notifications?${params.toString()}`
+      },
+      providesTags: ['Notification'],
+    }),
+
+    getUnreadCount: builder.query<{ unreadCount: number }, void>({
+      query: () => '/notifications/unread-count',
+      providesTags: ['Notification'],
+    }),
+
+    markNotificationAsRead: builder.mutation<{ message: string }, number>({
+      query: (notificationId) => ({
+        url: `/notifications/${notificationId}/read`,
+        method: 'PATCH',
+      }),
+      invalidatesTags: ['Notification'],
+    }),
+
+    markAllNotificationsAsRead: builder.mutation<{ message: string; updatedCount: number }, void>({
+      query: () => ({
+        url: '/notifications/mark-all-read',
+        method: 'PATCH',
+      }),
+      invalidatesTags: ['Notification'],
+    }),
+
+    deleteNotification: builder.mutation<{ message: string }, number>({
+      query: (notificationId) => ({
+        url: `/notifications/${notificationId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Notification'],
+    }),
+
+    deleteAllReadNotifications: builder.mutation<{ message: string; deletedCount: number }, void>({
+      query: () => ({
+        url: '/notifications/read',
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Notification'],
+    }),
+
+    // Statistics endpoints
+    getSalesRevenue: builder.query<any, { startDate?: string; endDate?: string }>({
+      query: ({ startDate, endDate } = {}) => {
+        const params = new URLSearchParams()
+        if (startDate) params.append('startDate', startDate)
+        if (endDate) params.append('endDate', endDate)
+        return `/statistics/sales-revenue?${params.toString()}`
+      },
+      providesTags: ['Statistics'],
+    }),
+
+    getCashFlow: builder.query<any, { startDate?: string; endDate?: string }>({
+      query: ({ startDate, endDate } = {}) => {
+        const params = new URLSearchParams()
+        if (startDate) params.append('startDate', startDate)
+        if (endDate) params.append('endDate', endDate)
+        return `/statistics/cash-flow?${params.toString()}`
+      },
+      providesTags: ['Statistics'],
+    }),
+
+    getCustomerMetrics: builder.query<any, { startDate?: string; endDate?: string }>({
+      query: ({ startDate, endDate } = {}) => {
+        const params = new URLSearchParams()
+        if (startDate) params.append('startDate', startDate)
+        if (endDate) params.append('endDate', endDate)
+        return `/statistics/customers?${params.toString()}`
+      },
+      providesTags: ['Statistics'],
+    }),
+
+    getProductPerformance: builder.query<any, { startDate?: string; endDate?: string }>({
+      query: ({ startDate, endDate } = {}) => {
+        const params = new URLSearchParams()
+        if (startDate) params.append('startDate', startDate)
+        if (endDate) params.append('endDate', endDate)
+        return `/statistics/products?${params.toString()}`
+      },
+      providesTags: ['Statistics'],
+    }),
+
+    getStatisticsOverview: builder.query<any, void>({
+      query: () => '/statistics/overview',
+      providesTags: ['Statistics'],
+    }),
+
+    // Admin endpoints
+    getAdminDashboard: builder.query<any, void>({
+      query: () => '/admin/dashboard/overview',
+      providesTags: ['Admin'],
+    }),
+
+    getAdminUsers: builder.query<any, { page?: number; limit?: number; search?: string }>({
+      query: ({ page = 1, limit = 20, search = '' } = {}) => {
+        const params = new URLSearchParams()
+        if (page) params.append('page', page.toString())
+        if (limit) params.append('limit', limit.toString())
+        if (search) params.append('search', search)
+        return `/admin/users?${params.toString()}`
+      },
+      providesTags: ['Admin'],
+    }),
+
+    updateUserStatus: builder.mutation<any, { id: number; is_active: boolean }>({
+      query: ({ id, is_active }) => ({
+        url: `/admin/users/${id}/status`,
+        method: 'PATCH',
+        body: { is_active },
+      }),
+      invalidatesTags: ['Admin'],
+    }),
+
+    getAdminProducts: builder.query<any, { page?: number; limit?: number; search?: string }>({
+      query: ({ page = 1, limit = 20, search = '' } = {}) => {
+        const params = new URLSearchParams()
+        if (page) params.append('page', page.toString())
+        if (limit) params.append('limit', limit.toString())
+        if (search) params.append('search', search)
+        return `/admin/products?${params.toString()}`
+      },
+      providesTags: ['Admin'],
+    }),
+
+    updateProduct: builder.mutation<any, { id: number; data: any }>({
+      query: ({ id, data }) => ({
+        url: `/admin/products/${id}`,
+        method: 'PUT',
+        body: data,
+      }),
+      invalidatesTags: ['Admin', 'Product'],
+    }),
+
+    getAdminOrders: builder.query<any, { page?: number; limit?: number; status?: string }>({
+      query: ({ page = 1, limit = 20, status } = {}) => {
+        const params = new URLSearchParams()
+        if (page) params.append('page', page.toString())
+        if (limit) params.append('limit', limit.toString())
+        if (status) params.append('status', status)
+        return `/admin/orders?${params.toString()}`
+      },
+      providesTags: ['Admin'],
+    }),
+
+    getAdminOrderDetails: builder.query<any, number>({
+      query: (id) => `/admin/orders/${id}`,
+      providesTags: ['Admin'],
+    }),
+
+    updateAdminOrderStatus: builder.mutation<any, { id: number; status: string }>({
+      query: ({ id, status }) => ({
+        url: `/admin/orders/${id}/status`,
+        method: 'PATCH',
+        body: { status },
+      }),
+      invalidatesTags: ['Admin', 'Order'],
+    }),
+
+    sendBroadcastNotification: builder.mutation<any, { title: string; message: string; type: string; data?: any }>({
+      query: (notification) => ({
+        url: '/admin/notifications/broadcast',
+        method: 'POST',
+        body: notification,
+      }),
+      invalidatesTags: ['Admin', 'Notification'],
+    }),
   }),
 })
 
@@ -253,4 +431,24 @@ export const {
   useRecordProductViewMutation,
   useGetRecentProductsQuery,
   useGetUserCouponsQuery,
+  useGetNotificationsQuery,
+  useGetUnreadCountQuery,
+  useMarkNotificationAsReadMutation,
+  useMarkAllNotificationsAsReadMutation,
+  useDeleteNotificationMutation,
+  useDeleteAllReadNotificationsMutation,
+  useGetSalesRevenueQuery,
+  useGetCashFlowQuery,
+  useGetCustomerMetricsQuery,
+  useGetProductPerformanceQuery,
+  useGetStatisticsOverviewQuery,
+  useGetAdminDashboardQuery,
+  useGetAdminUsersQuery,
+  useUpdateUserStatusMutation,
+  useGetAdminProductsQuery,
+  useUpdateProductMutation,
+  useGetAdminOrdersQuery,
+  useGetAdminOrderDetailsQuery,
+  useUpdateAdminOrderStatusMutation,
+  useSendBroadcastNotificationMutation,
 } = api

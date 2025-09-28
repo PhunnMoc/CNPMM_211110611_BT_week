@@ -59,12 +59,7 @@ INSERT INTO product_images (product_id, image_url, alt_text, is_primary, sort_or
 (15, 'https://images-na.ssl-images-amazon.com/images/I/71-Fu-9ITnL.jpg', 'Garden Hose Pro 50ft', TRUE, 1),
 (16, 'https://st.meta.vn/Data/image/2018/04/24/bong-ro-spalding-jr-nba-silver-size-6-74-945z.jpg', 'Spalding NBA Basketball', TRUE, 1);
 
--- Insert sample users (passwords are hashed with bcrypt)
--- Password for all test users is: password123
-INSERT INTO users (username, email, password_hash, first_name, last_name, phone, is_admin) VALUES
-('admin', 'admin@gmail.com', '$2b$10$rQZ8kF5jK9mN2pL3qR7sTuVwXyZ1aB4cD6eF8gH9iJ0kL1mN2oP3qR4sT5uV6wX7yZ8', 'Admin', 'User', '+1234567890', TRUE),
-('john_doe', 'john@example.com', '$2b$10$rQZ8kF5jK9mN2pL3qR7sTuVwXyZ1aB4cD6eF8gH9iJ0kL1mN2oP3qR4sT5uV6wX7yZ8', 'John', 'Doe', '+1234567891', FALSE),
-('jane_smith', 'jane@example.com', '$2b$10$rQZ8kF5jK9mN2pL3qR7sTuVwXyZ1aB4cD6eF8gH9iJ0kL1mN2oP3qR4sT5uV6wX7yZ8', 'Jane', 'Smith', '+1234567892', FALSE);
+-- Note: Users are created by backend/scripts/seed_users.js with proper password hashing
 
 
 -- Insert sample user addresses

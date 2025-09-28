@@ -15,14 +15,19 @@ CNPMM_211110611_BT_week/
 │  │  ├─ types/                  # Shared TS types (product, orderTypes, user, ...)
 │  │  └─ utils/                  # Helpers (toast, etc.)
 │  └─ next.config.ts             # Rewrites /api → backend
-├─ backend/                       # Express API
-│  ├─ routes/                    # auth, products, categories, cart, orders, users, admin
-│  ├─ middleware/                # auth, adminAuth (role-based access)
-│  ├─ config/                    # database.js (mysql2 pool)
-│  ├─ services/                  # notificationService (WebSocket)
-│  ├─ socket/                    # socketServer.js (real-time notifications)
-│  └─ server.js                  # Express app, CORS, rate-limit
-└─ database/                      # schema.sql, seeds.sql
+└─ backend/                       # Express API
+   ├─ routes/                    # auth, products, categories, cart, orders, users, admin
+   ├─ middleware/                # auth, adminAuth (role-based access)
+   ├─ config/                    # database.js (mysql2 pool)
+   ├─ services/                  # notificationService (WebSocket)
+   ├─ socket/                    # socketServer.js (real-time notifications)
+   ├─ scripts/                   # Database setup scripts and SQL files
+   │  ├─ database/               # schema.sql, seeds.sql
+   │  ├─ seed_users.js           # User seeding script
+   │  ├─ setup-database.js       # Main setup script
+   │  ├─ setup-database.bat      # Windows setup script
+   │  └─ setup-database.sh       # Linux/macOS setup script
+   └─ server.js                  # Express app, CORS, rate-limit
 ```
 
 ## Highlights
@@ -68,46 +73,134 @@ CNPMM_211110611_BT_week/
 - Node.js 18+
 - MySQL 8+
 
-## Setup
+## Quick Setup
 
-1. Database
+### Prerequisites
 
-```
-mysql -u root -p < database/schema.sql
-mysql -u root -p < database/seeds.sql   # optional
-```
+- Node.js 18+
+- MySQL 8+
+- Git
 
-2. Backend
+### 1. Clone and Install Dependencies
 
-```
+```bash
+git clone <repository-url>
+cd CNPMM_211110611_BT_week
+
+# Install backend dependencies
 cd backend
-npm i
-copy .env.example .env   # create if not present
-# .env
+npm install
+
+# Install frontend dependencies
+cd ../frontend
+npm install
+cd ..
+```
+
+### 2. Environment Configuration
+
+Create a `.env` file in the `backend` directory:
+
+```bash
+cd backend
+copy .env.example .env   # Windows
+# or
+cp .env.example .env     # Linux/macOS
+```
+
+Edit the `.env` file with your database credentials:
+
+```env
 DB_HOST=localhost
 DB_USER=root
-DB_PASSWORD=
+DB_PASSWORD=your_password
 DB_NAME=shopping_website
-JWT_SECRET=dev-secret
+JWT_SECRET=your-secret-key
 PORT=5000
-
-npm run dev
+BCRYPT_ROUNDS=10
 ```
 
-3. Frontend
+### 3. Database Setup
 
+**Option A: Automated Setup (Recommended)**
+
+```bash
+# Windows
+backend\scripts\setup-database.bat
+
+# Linux/macOS
+./backend/scripts/setup-database.sh
+
+# Or run directly with Node.js
+cd backend/scripts
+node setup-database.js
 ```
+
+**Option B: Manual Setup**
+
+```bash
+# Create database and tables
+mysql -u root -p < backend/scripts/database/schema.sql
+
+# Seed users with proper password hashing
+cd backend/scripts
+node seed_users.js
+cd ../..
+
+# Insert sample data
+mysql -u root -p < backend/scripts/database/seeds.sql
+```
+
+### 4. Start the Application
+
+**Terminal 1 - Backend:**
+
+```bash
+cd backend
+npm start
+```
+
+**Terminal 2 - Frontend:**
+
+```bash
 cd frontend
-npm i
 npm run dev
 ```
 
-The Next.js app proxies API calls to the backend via `next.config.ts` rewrites.
+### 5. Access the Application
+
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:5000
+
+### Default Login Credentials
+
+**Admin Account:**
+
+- Email: `admin@gmail.com`
+- Password: `password123`
+
+**Test User Accounts:**
+
+- Email: `john@example.com` | Password: `password123`
+- Email: `jane@example.com` | Password: `password123`
 
 ## Useful Scripts
 
-- Backend: `npm run dev` – starts Express with relaxed rate limit in dev
-- Frontend: `npm run dev` – starts Next.js on http://localhost:3000
+### Development
+
+- **Backend**: `npm run dev` – starts Express with relaxed rate limit in dev
+- **Frontend**: `npm run dev` – starts Next.js on http://localhost:3000
+
+### Database Management
+
+- **Setup Database**: `cd backend/scripts && node setup-database.js` – automated database setup
+- **Seed Users**: `cd backend/scripts && node seed_users.js` – create/update user accounts
+- **Reset Database**: Drop and recreate database, then run setup script
+
+### Production
+
+- **Backend**: `npm start` – starts Express in production mode
+- **Frontend**: `npm run build && npm start` – builds and serves Next.js app
 
 ## Admin Panel Usage
 

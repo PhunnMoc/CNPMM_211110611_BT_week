@@ -4,6 +4,7 @@ const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const http = require("http");
 require("dotenv").config();
+const { ensureProductIndex } = require("./services/elasticsearch");
 
 const authRoutes = require("./routes/auth");
 const productRoutes = require("./routes/products");
@@ -94,4 +95,8 @@ server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log(`WebSocket server is running on ws://localhost:${PORT}`);
+  // Initialize Elasticsearch index if available
+  ensureProductIndex().catch((e) =>
+    console.warn("Elasticsearch index init warning:", e.message)
+  );
 });

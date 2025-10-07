@@ -5,6 +5,11 @@ const pool = require("../config/database");
 const { authenticateToken, requireAdmin } = require("../middleware/auth");
 
 const router = express.Router();
+const {
+  searchProducts: esSearchProducts,
+  indexProduct: esIndexProduct,
+  deleteProduct: esDeleteProduct,
+} = require("../services/elasticsearch");
 
 // Get all products with filtering and pagination
 router.get(
@@ -160,6 +165,80 @@ router.get(
     }
   }
 );
+
+// Full-text search via Elasticsearch with MySQL fallback
+router.get("/search", async (req, res) => {
+  try {
+    const { q, page = 1, limit = 12, category, minPrice, maxPrice } = req.query;
+    const from = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+
+    try {
+      const result = await esSearchProducts(q, {
+        from,
+        size: parseInt(limit, 10),
+        categoryId: category ? parseInt(category, 10) : undefined,
+        minPrice: minPrice !== undefined ? parseFloat(minPrice) : undefined,
+        maxPrice: maxPrice !== undefined ? parseFloat(maxPrice) : undefined,
+      });
+
+      return res.json({
+        products: result.items,
+        pagination: {
+          page: parseInt(page, 10),
+          limit: parseInt(limit, 10),
+          total: result.total,
+          pages: Math.ceil(result.total / parseInt(limit, 10)),
+        },
+        source: "elasticsearch",
+      });
+    } catch (esErr) {
+      // Fallback to existing SQL LIKE search
+      const where = ["p.is_active = 1"];
+      const params = [];
+      if (q) {
+        where.push("(p.name LIKE ? OR p.description LIKE ?)");
+        params.push(`%${q}%`, `%${q}%`);
+      }
+      if (category) {
+        where.push("p.category_id = ?");
+        params.push(category);
+      }
+      if (minPrice) {
+        where.push("p.price >= ?");
+        params.push(minPrice);
+      }
+      if (maxPrice) {
+        where.push("p.price <= ?");
+        params.push(maxPrice);
+      }
+      const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+      const [[{ total }]] = await pool.query(
+        `SELECT COUNT(*) AS total FROM products p ${whereClause}`,
+        params
+      );
+      const [rows] = await pool.query(
+        `SELECT p.* FROM products p ${whereClause} ORDER BY p.created_at DESC LIMIT ? OFFSET ?`,
+        [...params, parseInt(limit, 10), from]
+      );
+
+      return res.json({
+        products: rows,
+        pagination: {
+          page: parseInt(page, 10),
+          limit: parseInt(limit, 10),
+          total,
+          pages: Math.ceil(total / parseInt(limit, 10)),
+        },
+        source: "mysql",
+        warning: "Elasticsearch unavailable, using SQL fallback",
+      });
+    }
+  } catch (error) {
+    console.error("Search products error:", error);
+    res.status(500).json({ message: "Server error while searching products" });
+  }
+});
 
 // Get featured products
 router.get("/featured", async (req, res) => {
@@ -460,6 +539,28 @@ router.post(
         ]
       );
 
+      // Index to Elasticsearch (best effort)
+      try {
+        await esIndexProduct({
+          id: result.insertId,
+          name,
+          description,
+          price,
+          discount_price: discountPrice || null,
+          sku: sku || null,
+          category_id: categoryId,
+          brand: brand || null,
+          weight: weight || null,
+          dimensions: dimensions || null,
+          stock_quantity: stockQuantity,
+          is_featured: !!isFeatured,
+          is_active: true,
+          created_at: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.warn("Elasticsearch index on create failed:", e.message);
+      }
+
       res.status(201).json({
         message: "Product created successfully",
         productId: result.insertId,
@@ -550,6 +651,34 @@ router.put(
         updateValues
       );
 
+      // Reindex document with latest values (best effort)
+      try {
+        const [[fresh]] = await pool.query(
+          "SELECT * FROM products WHERE id = ?",
+          [productId]
+        );
+        if (fresh) {
+          await esIndexProduct({
+            id: fresh.id,
+            name: fresh.name,
+            description: fresh.description,
+            price: fresh.price,
+            discount_price: fresh.discount_price,
+            sku: fresh.sku,
+            category_id: fresh.category_id,
+            brand: fresh.brand,
+            weight: fresh.weight,
+            dimensions: fresh.dimensions,
+            stock_quantity: fresh.stock_quantity,
+            is_featured: !!fresh.is_featured,
+            is_active: !!fresh.is_active,
+            created_at: fresh.created_at,
+          });
+        }
+      } catch (e) {
+        console.warn("Elasticsearch index on update failed:", e.message);
+      }
+
       res.json({ message: "Product updated successfully" });
     } catch (error) {
       console.error("Update product error:", error);
@@ -576,6 +705,12 @@ router.delete("/:id", authenticateToken, requireAdmin, async (req, res) => {
     await pool.execute("UPDATE products SET is_active = 0 WHERE id = ?", [
       productId,
     ]);
+
+    try {
+      await esDeleteProduct(productId);
+    } catch (e) {
+      console.warn("Elasticsearch delete failed:", e.message);
+    }
 
     res.json({ message: "Product deleted successfully" });
   } catch (error) {

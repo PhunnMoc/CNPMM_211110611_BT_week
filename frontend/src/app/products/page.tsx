@@ -27,6 +27,7 @@ export default function ProductsPage() {
    const searchParams = useSearchParams()
    const router = useRouter()
    const page = parseInt(searchParams.get('page') || '1', 10)
+   const q = (searchParams.get('q') || '').trim()
    const limit = 12
    const [data, setData] = useState<ProductsResponse | null>(null)
    const [loading, setLoading] = useState(true)
@@ -50,7 +51,10 @@ export default function ProductsPage() {
       async function loadInitial() {
          try {
             setLoading(true)
-            const res = await fetch(`/api/products?page=1&limit=${limit}`, { signal: controller.signal })
+            const url = q
+               ? `/api/products/search?q=${encodeURIComponent(q)}&page=1&limit=${limit}`
+               : `/api/products?page=1&limit=${limit}`
+            const res = await fetch(url, { signal: controller.signal })
             if (!res.ok) throw new Error('Failed to load products')
             const json = await res.json()
             setData(json)
@@ -65,7 +69,7 @@ export default function ProductsPage() {
       }
       loadInitial()
       return () => controller.abort()
-   }, [])
+   }, [q])
 
    // Load more products function
    const loadMoreProducts = useCallback(async () => {
@@ -74,7 +78,10 @@ export default function ProductsPage() {
       try {
          setLoadingMore(true)
          const nextPage = currentPage + 1
-         const res = await fetch(`/api/products?page=${nextPage}&limit=${limit}`)
+         const url = q
+            ? `/api/products/search?q=${encodeURIComponent(q)}&page=${nextPage}&limit=${limit}`
+            : `/api/products?page=${nextPage}&limit=${limit}`
+         const res = await fetch(url)
          if (!res.ok) throw new Error('Failed to load more products')
          const json = await res.json()
 
@@ -86,7 +93,7 @@ export default function ProductsPage() {
       } finally {
          setLoadingMore(false)
       }
-   }, [currentPage, hasMore, loadingMore, limit])
+   }, [currentPage, hasMore, loadingMore, limit, q])
 
    const { sentinelRef } = useInfiniteScroll({
       hasMore,
@@ -127,14 +134,23 @@ export default function ProductsPage() {
                <Loader />
             ) : (
                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                     {products.map((p) => (
-                        <ProductCard key={p.id} product={p as any} />
-                     ))}
-                  </div>
+                  {products.length === 0 ? (
+                     <div className="flex flex-col items-center justify-center py-20 text-white/70">
+                        <p className="text-lg font-medium">No products found</p>
+                        {q && (
+                           <p className="text-sm mt-2">Try change the search query</p>
+                        )}
+                     </div>
+                  ) : (
+                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {products.map((p) => (
+                           <ProductCard key={p.id} product={p as any} />
+                        ))}
+                     </div>
+                  )}
 
                   {/* Lazy Loading Trigger */}
-                  {hasMore && (
+                  {hasMore && products.length > 0 && (
                      <div ref={(el) => { loadMoreRef.current = el; (sentinelRef as any).current = el }} className="flex justify-center mt-8 h-6">
                         {loadingMore && (
                            <div className="flex items-center gap-2 text-white/80">

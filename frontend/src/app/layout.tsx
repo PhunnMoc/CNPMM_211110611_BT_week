@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
 import ConditionalLayout from '@/components/ConditionalLayout'
+import { ApiLoadingOverlay } from '@/components/ApiLoadingOverlay'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -26,6 +27,7 @@ export default function RootLayout({
                <ConditionalLayout>
                   {children}
                </ConditionalLayout>
+               <ApiLoadingOverlay />
                <Toaster position="top-right" />
             </Providers>
          </body>

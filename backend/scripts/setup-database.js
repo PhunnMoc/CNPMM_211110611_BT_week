@@ -14,7 +14,24 @@
 const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
-require("dotenv").config();
+const dotenv = require("dotenv");
+
+// Load environment variables from nearest available .env
+// Try: scripts/.env -> backend/.env -> repo-root/.env
+(() => {
+  const candidateEnvPaths = [
+    path.resolve(__dirname, ".env"),
+    path.resolve(__dirname, "..", ".env"),
+    path.resolve(__dirname, "..", "..", ".env"),
+  ];
+
+  for (const envPath of candidateEnvPaths) {
+    if (fs.existsSync(envPath)) {
+      dotenv.config({ path: envPath });
+      break;
+    }
+  }
+})();
 
 // Configuration
 const config = {

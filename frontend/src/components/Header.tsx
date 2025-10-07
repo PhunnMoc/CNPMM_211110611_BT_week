@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ShoppingCart, User, Search, Menu, X, LogOut, Package, UserRound, Bell } from 'lucide-react'
 import { useCartAPI } from '@/hooks/useCartAPI'
@@ -10,6 +11,8 @@ import { NotificationDropdown } from '@/components/NotificationDropdown'
 
 export function Header() {
    const [isMenuOpen, setIsMenuOpen] = useState(false)
+   const [search, setSearch] = useState('')
+   const router = useRouter()
    const { totalItems } = useCartAPI()
    const { user, logout, isAuthenticated } = useAuth()
 
@@ -43,6 +46,14 @@ export function Header() {
                   <div className="relative w-full">
                      <input
                         type="text"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onKeyDown={(e) => {
+                           if (e.key === 'Enter') {
+                              const q = search.trim()
+                              if (q.length > 0) router.push(`/products?q=${encodeURIComponent(q)}`)
+                           }
+                        }}
                         placeholder="Search products..."
                         className="w-full pl-10 pr-4 py-2 bg-white/10 text-white placeholder-white/60 border border-white/30 rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500"
                      />
@@ -167,6 +178,17 @@ export function Header() {
                      <div className="pt-4 border-t border-white/20">
                         <input
                            type="text"
+                           value={search}
+                           onChange={(e) => setSearch(e.target.value)}
+                           onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                 const q = search.trim()
+                                 if (q.length > 0) {
+                                    router.push(`/products?q=${encodeURIComponent(q)}`)
+                                    setIsMenuOpen(false)
+                                 }
+                              }
+                           }}
                            placeholder="Search products..."
                            className="w-full px-3 py-2 bg-white/10 text-white placeholder-white/60 border border-white/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
